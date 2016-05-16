@@ -1,5 +1,5 @@
 /*
- * Sunxi THS clock driver
+ * sun8i THS clock driver
  *
  * Copyright (C) 2015 Josef Gajdusek
  *
