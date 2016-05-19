@@ -362,6 +362,7 @@ static int sun4i_usb_phy_power_on(struct phy *_phy)
 		return ret;
 
 	phy->regulator_on = true;
+	pr_err("vbus on\n");
 
 	/* We must report Vbus high within OTG_TIME_A_WAIT_VRISE msec. */
 	if (phy->index == 0 && data->vbus_det_gpio && data->phy0_poll)
@@ -380,6 +381,7 @@ static int sun4i_usb_phy_power_off(struct phy *_phy)
 
 	regulator_disable(phy->vbus);
 	phy->regulator_on = false;
+	pr_err("vbus off\n");
 
 	/*
 	 * phy0 vbus typically slowly discharges, sometimes this causes the
@@ -437,12 +439,14 @@ static void sun4i_usb_phy0_id_vbus_det_scan(struct work_struct *work)
 		}
 		sun4i_usb_phy0_set_id_detect(phy0, id_det);
 		data->id_det = id_det;
+		pr_err("id %d\n", data->id_det);
 		id_notify = 1;
 	}
 
 	if (vbus_det != data->vbus_det) {
 		sun4i_usb_phy0_set_vbus_detect(phy0, vbus_det);
 		data->vbus_det = vbus_det;
+		pr_err("vbus-det %d\n", data->vbus_det);
 		vbus_notify = 1;
 	}
 
