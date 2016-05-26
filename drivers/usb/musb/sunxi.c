@@ -259,12 +259,10 @@ static int sunxi_musb_init(struct musb *musb)
 	writeb(SUNXI_MUSB_VEND0_PIO_MODE, musb->mregs + SUNXI_MUSB_VEND0);
 
 	/* Register notifier before calling phy_init() */
-	if (musb->port_mode == MUSB_PORT_MODE_DUAL_ROLE) {
-		ret = extcon_register_notifier(glue->extcon, EXTCON_USB_HOST,
-					       &glue->host_nb);
-		if (ret)
-			goto error_reset_assert;
-	}
+	ret = extcon_register_notifier(glue->extcon, EXTCON_USB_HOST,
+				       &glue->host_nb);
+	if (ret)
+		goto error_reset_assert;
 
 	ret = phy_init(glue->phy);
 	if (ret)
@@ -278,9 +276,8 @@ static int sunxi_musb_init(struct musb *musb)
 	return 0;
 
 error_unregister_notifier:
-	if (musb->port_mode == MUSB_PORT_MODE_DUAL_ROLE)
-		extcon_unregister_notifier(glue->extcon, EXTCON_USB_HOST,
-					   &glue->host_nb);
+	extcon_unregister_notifier(glue->extcon, EXTCON_USB_HOST,
+				   &glue->host_nb);
 error_reset_assert:
 	if (test_bit(SUNXI_MUSB_FL_HAS_RESET, &glue->flags))
 		reset_control_assert(glue->rst);
@@ -304,9 +301,8 @@ static int sunxi_musb_exit(struct musb *musb)
 
 	phy_exit(glue->phy);
 
-	if (musb->port_mode == MUSB_PORT_MODE_DUAL_ROLE)
-		extcon_unregister_notifier(glue->extcon, EXTCON_USB_HOST,
-					   &glue->host_nb);
+	extcon_unregister_notifier(glue->extcon, EXTCON_USB_HOST,
+				   &glue->host_nb);
 
 	if (test_bit(SUNXI_MUSB_FL_HAS_RESET, &glue->flags))
 		reset_control_assert(glue->rst);
@@ -314,25 +310,6 @@ static int sunxi_musb_exit(struct musb *musb)
 	clk_disable_unprepare(glue->clk);
 	if (test_bit(SUNXI_MUSB_FL_HAS_SRAM, &glue->flags))
 		sunxi_sram_release(musb->controller->parent);
-
-	return 0;
-}
-
-static int sunxi_set_mode(struct musb *musb, u8 mode)
-{
-	struct sunxi_glue *glue = dev_get_drvdata(musb->controller->parent);
-	int ret;
-
-	if (mode == MUSB_HOST) {
-		ret = phy_power_on(glue->phy);
-		if (ret)
-			return ret;
-
-		set_bit(SUNXI_MUSB_FL_PHY_ON, &glue->flags);
-		/* Stop musb work from turning vbus off again */
-		set_bit(SUNXI_MUSB_FL_VBUS_ON, &glue->flags);
-		musb->xceiv->otg->state = OTG_STATE_A_WAIT_VRISE;
-	}
 
 	return 0;
 }
@@ -583,7 +560,6 @@ static const struct musb_platform_ops sunxi_musb_ops = {
 	.exit		= sunxi_musb_exit,
 	.enable		= sunxi_musb_enable,
 	.disable	= sunxi_musb_disable,
-	.set_mode	= sunxi_set_mode,
 	.fifo_offset	= sunxi_musb_fifo_offset,
 	.ep_offset	= sunxi_musb_ep_offset,
 	.busctl_offset	= sunxi_musb_busctl_offset,

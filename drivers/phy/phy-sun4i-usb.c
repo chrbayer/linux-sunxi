@@ -40,6 +40,7 @@
 #include <linux/power_supply.h>
 #include <linux/regulator/consumer.h>
 #include <linux/reset.h>
+#include <linux/usb/of.h>
 #include <linux/workqueue.h>
 
 #define REG_ISCR			0x00
@@ -110,6 +111,7 @@ struct sun4i_usb_phy_cfg {
 struct sun4i_usb_phy_data {
 	void __iomem *base;
 	const struct sun4i_usb_phy_cfg *cfg;
+	enum usb_dr_mode dr_mode;
 	struct mutex mutex;
 	struct sun4i_usb_phy {
 		struct phy *phy;
@@ -285,16 +287,10 @@ static int sun4i_usb_phy_init(struct phy *_phy)
 		sun4i_usb_phy0_update_iscr(_phy, 0, ISCR_DPDM_PULLUP_EN);
 		sun4i_usb_phy0_update_iscr(_phy, 0, ISCR_ID_PULLUP_EN);
 
-		if (data->id_det_gpio) {
-			/* OTG mode, force ISCR and cable state updates */
-			data->id_det = -1;
-			data->vbus_det = -1;
-			queue_delayed_work(system_wq, &data->detect, 0);
-		} else {
-			/* Host only mode */
-			sun4i_usb_phy0_set_id_detect(_phy, 0);
-			sun4i_usb_phy0_set_vbus_detect(_phy, 1);
-		}
+		/* Force ISCR and cable state updates */
+		data->id_det = -1;
+		data->vbus_det = -1;
+		queue_delayed_work(system_wq, &data->detect, 0);
 	}
 
 	return 0;
@@ -317,6 +313,19 @@ static int sun4i_usb_phy_exit(struct phy *_phy)
 	clk_disable_unprepare(phy->clk);
 
 	return 0;
+}
+
+static int sun4i_usb_phy0_get_id_det(struct sun4i_usb_phy_data *data)
+{
+	switch (data->dr_mode) {
+	case USB_DR_MODE_OTG:
+		return gpiod_get_value_cansleep(data->id_det_gpio);
+	case USB_DR_MODE_HOST:
+		return 0;
+	case USB_DR_MODE_PERIPHERAL:
+	default:
+		return 1;
+	}
 }
 
 static int sun4i_usb_phy0_get_vbus_det(struct sun4i_usb_phy_data *data)
@@ -434,7 +443,7 @@ static void sun4i_usb_phy0_id_vbus_det_scan(struct work_struct *work)
 	struct phy *phy0 = data->phys[0].phy;
 	int id_det, vbus_det, id_notify = 0, vbus_notify = 0;
 
-	id_det = gpiod_get_value_cansleep(data->id_det_gpio);
+	id_det = sun4i_usb_phy0_get_id_det(data);
 	vbus_det = sun4i_usb_phy0_get_vbus_det(data);
 
 	mutex_lock(&phy0->mutex);
@@ -572,6 +581,14 @@ static int sun4i_usb_phy_probe(struct platform_device *pdev)
 	if (!data->cfg)
 		return -EINVAL;
 
+	data->dr_mode = of_usb_get_dr_mode_by_phy(np);
+	if (data->dr_mode == USB_DR_MODE_UNKNOWN) {
+		dev_err(dev, "dr_mode unknown\n");
+		return -EINVAL;
+	}
+	
+	pr_err("dr_mode %d\n", (int)data->dr_mode);
+
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "phy_ctrl");
 	data->base = devm_ioremap_resource(dev, res);
 	if (IS_ERR(data->base))
@@ -597,23 +614,20 @@ static int sun4i_usb_phy_probe(struct platform_device *pdev)
 			return -EPROBE_DEFER;
 	}
 
-	/* vbus_det without id_det makes no sense, and is not supported */
-	if (sun4i_usb_phy0_have_vbus_det(data) && !data->id_det_gpio) {
+	/* otg without id_det makes no sense, and is not supported */
+	if (data->dr_mode == USB_DR_MODE_OTG && !data->id_det_gpio) {
 		dev_err(dev, "usb0_id_det missing or invalid\n");
 		return -ENODEV;
 	}
 
-	if (data->id_det_gpio) {
-		data->extcon = devm_extcon_dev_allocate(dev,
-							sun4i_usb_phy0_cable);
-		if (IS_ERR(data->extcon))
-			return PTR_ERR(data->extcon);
+	data->extcon = devm_extcon_dev_allocate(dev, sun4i_usb_phy0_cable);
+	if (IS_ERR(data->extcon))
+		return PTR_ERR(data->extcon);
 
-		ret = devm_extcon_dev_register(dev, data->extcon);
-		if (ret) {
-			dev_err(dev, "failed to register extcon: %d\n", ret);
-			return ret;
-		}
+	ret = devm_extcon_dev_register(dev, data->extcon);
+	if (ret) {
+		dev_err(dev, "failed to register extcon: %d\n", ret);
+		return ret;
 	}
 
 	for (i = 0; i < data->cfg->num_phys; i++) {
