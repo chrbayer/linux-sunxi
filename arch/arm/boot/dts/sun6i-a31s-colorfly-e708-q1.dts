@@ -70,6 +70,12 @@
 	status = "okay";
 };
 
+&i2c1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c1_pins_a>;
+	status = "okay";
+};
+
 &lradc {
 	vref-supply = <&reg_aldo3>;
 	status = "okay";
