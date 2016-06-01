@@ -127,7 +127,7 @@
 		interrupt-parent = <&nmi_intc>;
 		interrupts = <0 IRQ_TYPE_LEVEL_LOW>;
 		eldoin-supply = <&reg_dcdc1>;
-		x-powers,drivebus;
+		x-powers,drive-vbus-en;
 	};
 };
 
@@ -193,7 +193,7 @@
 	regulator-name = "vcc-dram";
 };
 
-&reg_drivebus {
+&reg_drivevbus {
 	regulator-name = "usb0-vbus";
 	status = "okay";
 };
@@ -234,6 +234,6 @@
 	pinctrl-0 = <&usb0_id_detect_pin>;
 	usb0_id_det-gpio = <&pio 7 8 GPIO_ACTIVE_HIGH>; /* PH8 */
 	usb0_vbus_power-supply = <&usb_power_supply>;
-	usb0_vbus-supply = <&reg_drivebus>;
+	usb0_vbus-supply = <&reg_drivevbus>;
 	status = "okay";
 };

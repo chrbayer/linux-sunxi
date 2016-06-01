@@ -534,7 +534,7 @@ static struct mfd_cell axp22x_cells[] = {
 		.name			= "axp20x-regulator",
 	}, {
 		.name		= "axp20x-usb-power-supply",
-		.of_compatible	= "x-powers,axp202-usb-power-supply",
+		.of_compatible	= "x-powers,axp221-usb-power-supply",
 		.num_resources	= ARRAY_SIZE(axp22x_usb_power_supply_resources),
 		.resources	= axp22x_usb_power_supply_resources,
 	},

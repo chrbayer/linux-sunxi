@@ -142,14 +142,14 @@
 			regulator-name = "rtc_ldo";
 		};
 
-		reg_drivebus: drivebus {
-			regulator-name = "drivebus";
+		reg_drivevbus: drivevbus {
+			regulator-name = "drivevbus";
 			status = "disabled";
 		};
 	};
 
 	usb_power_supply: usb_power_supply {
-		compatible = "x-powers,axp202-usb-power-supply";
+		compatible = "x-powers,axp221-usb-power-supply";
 		status = "disabled";
 	};
 };

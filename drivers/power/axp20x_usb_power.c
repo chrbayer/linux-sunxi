@@ -42,7 +42,7 @@
 #define AXP20X_VBUS_MON_VBUS_VALID	BIT(3)
 
 struct axp20x_usb_power {
-	struct axp20x_dev *axp20x;
+	struct device_node *np;
 	struct regmap *regmap;
 	struct power_supply *supply;
 };
@@ -86,14 +86,11 @@ static int axp20x_usb_power_get_property(struct power_supply *psy,
 
 		switch (v & AXP20X_VBUS_CLIMIT_MASK) {
 		case AXP20X_VBUC_CLIMIT_100mA:
-			switch (power->axp20x->variant) {
-			case AXP202_ID:
-			case AXP209_ID:
+			if (of_device_is_compatible(power->np,
+					"x-powers,axp202-usb-power-supply")) {
 				val->intval = 100000;
-				break;
-			default:
+			} else {
 				val->intval = -1; /* No 100mA limit */
-				break;
 			}
 			break;
 		case AXP20X_VBUC_CLIMIT_500mA:
@@ -133,9 +130,8 @@ static int axp20x_usb_power_get_property(struct power_supply *psy,
 
 		val->intval = POWER_SUPPLY_HEALTH_GOOD;
 
-		switch (power->axp20x->variant) {
-		case AXP202_ID:
-		case AXP209_ID:
+		if (of_device_is_compatible(power->np,
+				"x-powers,axp202-usb-power-supply")) {
 			ret = regmap_read(power->regmap,
 					  AXP20X_USB_OTG_STATUS, &v);
 			if (ret)
@@ -144,9 +140,6 @@ static int axp20x_usb_power_get_property(struct power_supply *psy,
 			if (!(v & AXP20X_USB_STATUS_VBUS_VALID))
 				val->intval =
 					POWER_SUPPLY_HEALTH_UNSPEC_FAILURE;
-			break;
-		default:
-			break;
 		}
 		break;
 	case POWER_SUPPLY_PROP_PRESENT:
@@ -221,12 +214,11 @@ static int axp20x_usb_power_probe(struct platform_device *pdev)
 	if (!power)
 		return -ENOMEM;
 
-	power->axp20x = axp20x;
+	power->np = pdev->dev.of_node;
 	power->regmap = axp20x->regmap;
 
-	switch (power->axp20x->variant) {
-	case AXP202_ID:
-	case AXP209_ID:
+	if (of_device_is_compatible(power->np,
+			"x-powers,axp202-usb-power-supply")) {
 		/* Enable vbus valid checking */
 		ret = regmap_update_bits(power->regmap, AXP20X_VBUS_MON,
 					 AXP20X_VBUS_MON_VBUS_VALID,
@@ -243,13 +235,11 @@ static int axp20x_usb_power_probe(struct platform_device *pdev)
 
 		usb_power_desc = &axp20x_usb_power_desc;
 		irq_names = axp20x_irq_names;
-		break;
-	case AXP221_ID:
-	case AXP223_ID:
+	} else if (of_device_is_compatible(power->np,
+			"x-powers,axp221-usb-power-supply")) {
 		usb_power_desc = &axp22x_usb_power_desc;
 		irq_names = axp22x_irq_names;
-		break;
-	default:
+	} else {
 		dev_err(&pdev->dev, "Unsupported AXP variant: %ld\n",
 			axp20x->variant);
 		return -EINVAL;
@@ -284,6 +274,7 @@ static int axp20x_usb_power_probe(struct platform_device *pdev)
 
 static const struct of_device_id axp20x_usb_power_match[] = {
 	{ .compatible = "x-powers,axp202-usb-power-supply" },
+	{ .compatible = "x-powers,axp221-usb-power-supply" },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, axp20x_usb_power_match);

@@ -232,10 +232,10 @@ static const struct regulator_desc axp22x_regulators[] = {
 	AXP_DESC_FIXED(AXP22X, RTC_LDO, "rtc_ldo", "ips", 3000),
 };
 
-static const struct regulator_desc axp22x_drivebus_regulator = {
-	.name		= "drivebus",
-	.supply_name	= "ips",
-	.of_match	= of_match_ptr("drivebus"),
+static const struct regulator_desc axp22x_drivevbus_regulator = {
+	.name		= "drivevbus",
+	.supply_name	= "drivevbus-supply",
+	.of_match	= of_match_ptr("drivevbus"),
 	.regulators_node = of_match_ptr("regulators"),
 	.type		= REGULATOR_VOLTAGE,
 	.owner		= THIS_MODULE,
@@ -365,11 +365,10 @@ static int axp20x_regulator_probe(struct platform_device *pdev)
 		.driver_data = axp20x,
 	};
 	int ret, i, nregulators;
-	unsigned int reg, sel;
 	u32 workmode;
 	const char *axp22x_dc1_name = axp22x_regulators[AXP22X_DCDC1].name;
 	const char *axp22x_dc5_name = axp22x_regulators[AXP22X_DCDC5].name;
-	bool drivebus = false;
+	bool drivevbus = false;
 
 	switch (axp20x->variant) {
 	case AXP202_ID:
@@ -381,26 +380,8 @@ static int axp20x_regulator_probe(struct platform_device *pdev)
 	case AXP223_ID:
 		regulators = axp22x_regulators;
 		nregulators = AXP22X_REG_ID_MAX;
-		drivebus = of_property_read_bool(pdev->dev.parent->of_node,
-						 "x-powers,drivebus");
-		/*
-		 * On cold boot ldo_io# sel is 0x1f which is out of spec,
-		 * fix this up here to avoid _regulator_get_voltage returning
-		 * -EINVAL when applying constraints.
-		 */
-		for (reg = AXP22X_LDO_IO0_V_OUT;
-		     reg <= AXP22X_LDO_IO1_V_OUT; reg += 2) {
-			ret = regmap_read(axp20x->regmap, reg, &sel);
-			if (ret)
-				return ret;
-			sel &= 0x1f;
-			if (sel > 0x1a) {
-				ret = regmap_update_bits(axp20x->regmap, reg,
-							 0x1f, 0x1a);
-				if (ret)
-					return ret;
-			}
-		}
+		drivevbus = of_property_read_bool(pdev->dev.parent->of_node,
+						  "x-powers,drive-vbus-en");
 		break;
 	default:
 		dev_err(&pdev->dev, "Unsupported AXP variant: %ld\n",
@@ -478,15 +459,15 @@ static int axp20x_regulator_probe(struct platform_device *pdev)
 		}
 	}
 
-	if (drivebus) {
-		/* Change N_VBUSEN sense pin to DRIVEBUS output pin */
+	if (drivevbus) {
+		/* Change N_VBUSEN sense pin to DRIVEVBUS output pin */
 		regmap_update_bits(axp20x->regmap, AXP20X_OVER_TMP,
 				   AXP22X_MISC_N_VBUSEN_FUNC, 0);
 		rdev = devm_regulator_register(&pdev->dev,
-					       &axp22x_drivebus_regulator,
+					       &axp22x_drivevbus_regulator,
 					       &config);
 		if (IS_ERR(rdev)) {
-			dev_err(&pdev->dev, "Failed to register drivebus\n");
+			dev_err(&pdev->dev, "Failed to register drivevbus\n");
 			return PTR_ERR(rdev);
 		}
 	}
